@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Finances - Couples Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans pb-20" x-data="coupleFinance()" x-cloak>
+
+  <!-- Top Header -->
+  <header class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 z-50">
+    <div class="max-w-2xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-coins text-2xl text-amber-300"></i>
+        <h1 class="text-xl font-bold tracking-tight">Our Finances</h1>
+      </div>
+      <button @click="showSettings = !showSettings" class="text-indigo-100 hover:text-white text-sm bg-indigo-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+        <i class="fa-solid fa-gear"></i> Settings
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto p-4 space-y-6">
+
+    <!-- Settings Modal -->
+    <div x-show="showSettings" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+      <h2 class="font-bold text-slate-700 flex items-center gap-2">
+        <i class="fa-solid fa-user-group text-indigo-500"></i> Partner Names
+      </h2>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-500 uppercase">Partner 1</label>
+          <input type="text" x-model="partner1" @change="saveData()" class="w-full mt-1 p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-500 uppercase">Partner 2</label>
+          <input type="text" x-model="partner2" @change="saveData()" class="w-full mt-1 p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        </div>
+      </div>
+      <div class="pt-2 border-t flex justify-between items-center text-xs text-slate-500">
+        <button @click="exportData()" class="text-indigo-600 hover:underline">Export Backup (JSON)</button>
+        <button @click="showSettings = false" class="bg-slate-100 px-3 py-1 rounded text-slate-700 hover:bg-slate-200">Close</button>
+      </div>
+    </div>
+
+    <!-- Settlement Card ("Who owes whom") -->
+    <div class="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl p-5 text-white shadow-lg space-y-3">
+      <div class="flex justify-between items-center text-indigo-100 text-xs font-medium uppercase tracking-wider">
+        <span>Shared Expenses Balance</span>
+        <span x-text="currentMonthYear()"></span>
+      </div>
+
+      <div class="text-2xl font-black">
+        <template x-if="balance.amount === 0">
+          <span>All settled up! 🎉</span>
+        </template>
+        <template x-if="balance.amount > 0">
+          <span><span x-text="balance.debtor"></span> owes <span x-text="balance.creditor"></span>: <span class="text-amber-300 font-bold" x-text="formatCurrency(balance.amount)"></span></span>
+        </template>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2 pt-3 border-t border-indigo-400/40 text-center text-xs">
+        <div>
+          <p class="text-indigo-200" x-text="partner1 + ' Paid'"></p>
+          <p class="font-bold text-base mt-0.5" x-text="formatCurrency(stats.p1Paid)"></p>
+        </div>
+        <div>
+          <p class="text-indigo-200" x-text="partner2 + ' Paid'"></p>
+          <p class="font-bold text-base mt-0.5" x-text="formatCurrency(stats.p2Paid)"></p>
+        </div>
+        <div>
+          <p class="text-indigo-200">Joint Total</p>
+          <p class="font-bold text-base mt-0.5" x-text="formatCurrency(stats.total)"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Expense Form -->
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+      <h2 class="font-bold text-slate-700 flex items-center gap-2">
+        <i class="fa-solid fa-plus-circle text-indigo-500"></i> Add Transaction
+      </h2>
+
+      <form @submit.prevent="addTransaction" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-500 uppercase">Description</label>
+            <input type="text" x-model="form.description" placeholder="e.g. Groceries, Netflix" required class="w-full mt-1 p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500 uppercase">Amount</label>
+            <input type="number" step="0.01" x-model.number="form.amount" placeholder="0.00" required class="w-full mt-1 p-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-500 uppercase">Paid By</label>
+            <select x-model="form.paidBy" class="w-full mt-1 p-2 rounded-lg border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option :value="partner1" x-text="partner1"></option>
+              <option :value="partner2" x-text="partner2"></option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-500 uppercase">Category</label>
+            <select x-model="form.category" class="w-full mt-1 p-2 rounded-lg border border-slate-300 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option value="Groceries">🛒 Groceries</option>
+              <option value="Dining Out">🍽️ Dining Out</option>
+              <option value="Housing & Bills">💡 Housing & Utilities</option>
+              <option value="Transportation">🚗 Transportation</option>
+              <option value="Entertainment">🍿 Fun & Dates</option>
+              <option value="Health">💊 Health</option>
+              <option value="Other">📦 Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-slate-500 uppercase">Split Method</label>
+          <div class="grid grid-cols-3 gap-2 mt-1">
+            <button type="button" @click="form.split = '50-50'" :class="form.split === '50-50' ? 'bg-indigo-600 text-white font-semibold' : 'bg-slate-100 text-slate-600'" class="py-2 rounded-lg text-xs transition">
+              Split 50 / 50
+            </button>
+            <button type="button" @click="form.split = 'p1-only'" :class="form.split === 'p1-only' ? 'bg-indigo-600 text-white font-semibold' : 'bg-slate-100 text-slate-600'" class="py-2 rounded-lg text-xs transition" x-text="partner1 + ' Only'">
+            </button>
+            <button type="button" @click="form.split = 'p2-only'" :class="form.split === 'p2-only' ? 'bg-indigo-600 text-white font-semibold' : 'bg-slate-100 text-slate-600'" class="py-2 rounded-lg text-xs transition" x-text="partner2 + ' Only'">
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-slate-900 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-800 transition">
+          Record Expense
+        </button>
+      </form>
+    </div>
+
+    <!-- Recent Transactions List -->
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="font-bold text-slate-700 flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-indigo-500"></i> Expenses History
+        </h2>
+        <span class="text-xs text-slate-400" x-text="transactions.length + ' records'"></span>
+      </div>
+
+      <div class="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+        <template x-for="(t, index) in transactions" :key="index">
+          <div class="py-3 flex items-center justify-between text-sm">
+            <div class="space-y-0.5">
+              <p class="font-semibold text-slate-800" x-text="t.description"></p>
+              <div class="flex items-center gap-2 text-xs text-slate-400">
+                <span x-text="t.category"></span>
+                <span>•</span>
+                <span>Paid by <strong class="text-slate-600" x-text="t.paidBy"></strong></span>
+                <span>•</span>
+                <span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]" x-text="t.split === '50-50' ? 'Split 50/50' : 'Solo'"></span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-3">
+              <span class="font-bold text-slate-700" x-text="formatCurrency(t.amount)"></span>
+              <button @click="deleteTransaction(index)" class="text-slate-300 hover:text-red-500 transition">
+                <i class="fa-solid fa-trash-can text-sm"></i>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="transactions.length === 0">
+          <p class="text-center py-6 text-sm text-slate-400">No expenses recorded yet. Add your first one above!</p>
+        </template>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function coupleFinance() {
+      return {
+        showSettings: false,
+        partner1: localStorage.getItem('cf_p1') || 'Husband',
+        partner2: localStorage.getItem('cf_p2') || 'Wife',
+        transactions: JSON.parse(localStorage.getItem('cf_txs')) || [],
+        form: {
+          description: '',
+          amount: '',
+          paidBy: localStorage.getItem('cf_p1') || 'Husband',
+          category: 'Groceries',
+          split: '50-50'
+        },
+
+        init() {
+          this.form.paidBy = this.partner1;
+        },
+
+        addTransaction() {
+          if (!this.form.amount || this.form.amount <= 0) return;
+
+          this.transactions.unshift({
+            description: this.form.description,
+            amount: parseFloat(this.form.amount),
+            paidBy: this.form.paidBy,
+            category: this.form.category,
+            split: this.form.split,
+            date: new Date().toISOString()
+          });
+
+          this.saveData();
+          this.form.description = '';
+          this.form.amount = '';
+        },
+
+        deleteTransaction(index) {
+          this.transactions.splice(index, 1);
+          this.saveData();
+        },
+
+        saveData() {
+          localStorage.setItem('cf_p1', this.partner1);
+          localStorage.setItem('cf_p2', this.partner2);
+          localStorage.setItem('cf_txs', JSON.stringify(this.transactions));
+        },
+
+        exportData() {
+          const blob = new Blob([JSON.stringify(this.transactions, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+        },
+
+        get stats() {
+          let p1Paid = 0;
+          let p2Paid = 0;
+          let total = 0;
+
+          this.transactions.forEach(t => {
+            total += t.amount;
+            if (t.paidBy === this.partner1) p1Paid += t.amount;
+            if (t.paidBy === this.partner2) p2Paid += t.amount;
+          });
+
+          return { p1Paid, p2Paid, total };
+        },
+
+        get balance() {
+          let p1Net = 0; // positive means p1 is owed money, negative means p1 owes
+
+          this.transactions.forEach(t => {
+            if (t.split === '50-50') {
+              const half = t.amount / 2;
+              if (t.paidBy === this.partner1) {
+                p1Net += half; // P1 covered P2's half
+              } else {
+                p1Net -= half; // P2 covered P1's half
+              }
+            } else if (t.split === 'p1-only' && t.paidBy === this.partner2) {
+              p1Net -= t.amount; // P2 paid for P1 entirely
+            } else if (t.split === 'p2-only' && t.paidBy === this.partner1) {
+              p1Net += t.amount; // P1 paid for P2 entirely
+            }
+          });
+
+          if (Math.abs(p1Net) < 0.01) {
+            return { amount: 0, debtor: '', creditor: '' };
+          } else if (p1Net > 0) {
+            return { amount: p1Net, debtor: this.partner2, creditor: this.partner1 };
+          } else {
+            return { amount: Math.abs(p1Net), debtor: this.partner1, creditor: this.partner2 };
+          }
+        },
+
+        formatCurrency(num) {
+          return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num || 0);
+        },
+
+        currentMonthYear() {
+          return new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        }
+      };
+    }
+  </script>
+</body>
+</html>
